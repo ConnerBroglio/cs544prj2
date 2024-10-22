@@ -97,10 +97,34 @@ export class LendingLibrary {
    *    BAD_REQ: no words in search, index/count not int or negative.
    */
   async findBooks(req: Record<string, any>)
-    : Promise<Errors.Result<Lib.XBook[]>>
-  {
-    return Errors.errResult('TODO');
+  : Promise<Errors.Result<Lib.XBook[]>>
+{
+  if (!req.search) {
+    return Errors.errResult('Search field is missing', 'MISSING', 'search');
   }
+  if (typeof req.search !== 'string') {
+    return Errors.errResult('Search field is not a string', 'BAD_TYPE', 'search');
+  }
+  const searchWords = extractWords(req.search);
+  if (searchWords.length === 0) {
+    return Errors.errResult('No valid words in search', 'BAD_REQ', 'search');
+  }
+
+  //const searchQuery = searchWords.join(' ');
+  const searchQuery = searchWords.map(word => "${word}").join(' ');
+
+  try {
+      const results = await this.dao.getBooksCollection().find({
+          $text: { $search: searchQuery }
+      }, { projection: { _id: 0 } })
+      .sort({ title: 1 })
+      .toArray() as Lib.Book[];
+
+      return Errors.okResult(results);
+  } catch (error) {
+      return Errors.errResult(error.message, 'DB');
+  }
+}
 
 
   /** Set up patron req.patronId to check out book req.isbn. 
@@ -153,4 +177,6 @@ function compareBook(book0: Lib.Book, book1: Lib.Book) : string|undefined {
   if (book0.publisher !== book1.publisher) return 'publisher';
 }
 
-
+function extractWords(text: string): string[] {
+  return text.toLowerCase().match(/\w{2,}/g) || [];
+}
