@@ -27,7 +27,7 @@ export class LendingLibrary {
 
   /** clear out underlying db */
   async clear() : Promise<Errors.Result<void>> {
-    return Errors.errResult('TODO');
+    return await this.dao.clear();
   }
 
   /** Add one-or-more copies of book represented by req to this library.
@@ -48,7 +48,33 @@ export class LendingLibrary {
    *      inconsistent with the data already present.
    */
   async addBook(req: Record<string, any>): Promise<Errors.Result<Lib.XBook>> {
-    return Errors.errResult('TODO');
+    const bookResult = Lib.validate<Lib.Book>('addBook', req);
+    if (!bookResult.isOk) {
+      return bookResult;  // Return validation error
+    }
+    const newBook = bookResult.val;
+
+    // Check if the book with the same ISBN exists
+    const existingBookResult = await this.dao.getBooksCollection().findOne({ isbn: newBook.isbn });
+    const existingBook = existingBookResult as Lib.Book;
+    if (existingBook) {
+      // Compare the books
+      const conflictField = compareBook(existingBook, newBook);
+      if (conflictField) {
+        return Errors.errResult(`Book conflict in field: ${conflictField}`, 'BAD_REQ');
+      }
+
+      // If the books are the same, increment the number of copies
+      await this.dao.getBooksCollection().updateOne(
+        { isbn: newBook.isbn },
+        { $inc: { nCopies: newBook.nCopies || 1 } }
+      );
+      return Errors.okResult(existingBook);
+    } else {
+      // If no existing book, insert the new book
+      await this.dao.getBooksCollection().insertOne(newBook);
+      return Errors.okResult(newBook);
+    }
   }
 
   /** Return all books whose authors and title fields contain all
