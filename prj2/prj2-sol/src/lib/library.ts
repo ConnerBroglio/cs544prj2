@@ -27,7 +27,6 @@ const Book =  z.object({
   isbn: z.string().regex(/^\d{3}-\d{3}-\d{3}-\d$/),
   title: z.string().min(1),
   authors: z.array(z.string().min(1)).min(1),
-  //authors: z.string().array(),
   pages: z.number().int().positive(),
   year: z.number().int().min(GUTENBERG_YEAR).max(NOW_YEAR),
   publisher: z.string().min(1),
@@ -44,7 +43,7 @@ export type XBook = z.infer<typeof XBook>;
 //   index: an optional non-negative integer.
 //   count: an optional non-negative integer.
 const Find = z.object({
-  search: z.string().min(2),
+  search: z.string().regex(/\b\w{2,}\b/),
   index: z.number().int().nonnegative().optional(),
   count: z.number().int().nonnegative().optional(),
 });

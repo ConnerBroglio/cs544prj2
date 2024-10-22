@@ -35,7 +35,12 @@ describe.skip('library types', () => {
     });
 
     it('having no authors is invalid', () => {
-      assert.fail('TODO');
+      // pretty sure this is correct
+      const req: Record<string, any> = { ...BOOK_1 };
+      req.authors = [];
+      const result = Lib.validate('addBook', req);
+      assert(result.isOk === false);
+      expect(result.errors.length).to.be.gt(0);
     });
     
     it('an empty author is invalid', () => {
@@ -47,7 +52,26 @@ describe.skip('library types', () => {
     });
     
     it('badly typed fields makes a good book invalid', () => {
-      assert.fail('TODO');
+      // checks for pages being a string
+      const reqPages: Record<string, any> = { ...BOOK_1 };
+      reqPages.pages = ["not a number"];
+      const resultPages = Lib.validate('addBook', reqPages);
+      assert(resultPages.isOk === false);
+      expect(resultPages.errors.length).to.be.gt(0);
+
+      // checks for year being a string
+      const reqYear: Record<string, any> = { ...BOOK_1 };
+      reqYear.year = ["not a number"];
+      const resultYear = Lib.validate('addBook', reqYear);
+      assert(resultYear.isOk === false);
+      expect(resultYear.errors.length).to.be.gt(0);
+
+      // checks for nCopies being a string
+      const reqNCopies: Record<string, any> = { ...BOOK_1 };
+      reqNCopies.nCopies = ["not a number"];
+      const resultNCopies = Lib.validate('addBook', reqNCopies);
+      assert(resultNCopies.isOk === false);
+      expect(resultNCopies.errors.length).to.be.gt(0);
     });
 
     it('empty string fields makes a good book invalid', () => {
