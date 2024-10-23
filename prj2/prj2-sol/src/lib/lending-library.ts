@@ -111,7 +111,7 @@ export class LendingLibrary {
   }
 
   //const searchQuery = searchWords.join(' ');
-  const searchQuery = searchWords.map(word => "${word}").join(' ');
+  const searchQuery = searchWords.map(word => '"${word}"').join(' ');
 
   try {
       const results = await this.dao.getBooksCollection().find({
