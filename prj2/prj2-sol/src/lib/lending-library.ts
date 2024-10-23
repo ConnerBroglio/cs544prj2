@@ -133,7 +133,41 @@ export class LendingLibrary {
    *      patron already has a copy of the same book checked out
    */
   async checkoutBook(req: Record<string, any>) : Promise<Errors.Result<void>> {
-    return Errors.errResult('TODO');
+    if(typeof req.patronId === 'undefined' || req.patronId === null){return Errors.errResult('Missing patronId', 'MISSING', 'patronId');}
+     if(typeof req.isbn === 'undefined' || req.isbn === null) {return Errors.errResult('Missing isbn', 'MISSING', 'isbn');}
+     if(typeof req.patronId !== 'string'){return Errors.errResult('patronId is not a string', 'BAD_TYPE', 'patronId');}
+     if(typeof req.isbn !== 'string'){return Errors.errResult('isbn is not a string', 'BAD_TYPE', 'isbn');}
+
+
+     const bookResult = await this.dao.getBooksCollection().findOne({ isbn: req.isbn });
+     const book = bookResult as Lib.Book;
+
+
+     if(!book){
+       return Errors.errResult('Book not found. Bad book.', 'BAD_REQ', 'isbn');
+     }
+
+
+     if(book.nCopies <= 0){
+       return Errors.errResult('No copies are available for checkout', 'BAD_REQ', 'isbn');
+      }
+    
+     //check if already checked out
+     const checkedOutBooks = await this.dao.getCheckedOutBooks(req.patronId) || [];
+     if(checkedOutBooks.includes(req.patronId)) {
+         return Errors.errResult('This book has already been checked out by the patron', 'BAD_REQ', 'isbn');
+     }
+
+
+     //check out book
+     await this.dao.getBooksCollection().updateOne(
+       { isbn: req.isbn },
+       { $inc: { nCopies: -1 } }  //decrease the number of available copies
+     );
+     //update patron collection
+     //await this.dao.getPatronCollection().insertOne(bookToCheckout);
+     await this.dao.addCheckedOutBook(req.patronId, req.isbn);
+     return Errors.okResult<void>(undefined); //successful return
   }
 
   /** Set up patron req.patronId to returns book req.isbn.
