@@ -50,32 +50,23 @@ export class LendingLibrary {
   async addBook(req: Record<string, any>): Promise<Errors.Result<Lib.XBook>> {
     const bookResult = Lib.validate<Lib.Book>('addBook', req);
     if (!bookResult.isOk) {
-      return bookResult;  // Return validation error
+      return bookResult;
     }
     const newBook = bookResult.val;
-
-    // Check if the book with the same ISBN exists
     const existingBookResult = await this.dao.getBooksCollection().findOne({ isbn: newBook.isbn });
     const existingBook = existingBookResult as Lib.Book;
     if (existingBook) {
-      // Compare the books
       const conflictField = compareBook(existingBook, newBook);
       if (conflictField) {
         return Errors.errResult(`Book conflict in field: ${conflictField}`, 'BAD_REQ');
       }
-
-      // If the books are the same, increment the number of copies
-      await this.dao.getBooksCollection().updateOne(
-        { isbn: newBook.isbn },
-        { $inc: { nCopies: newBook.nCopies || 1 } }
-      );
+      await this.dao.getBooksCollection().updateOne( { isbn: newBook.isbn }, { $inc: { nCopies: newBook.nCopies || 1 } });
       return Errors.okResult(existingBook);
     } else {
-      // If no existing book, insert the new book
       await this.dao.getBooksCollection().insertOne(newBook);
       return Errors.okResult(newBook);
     }
-  }
+  } 
 
   /** Return all books whose authors and title fields contain all
    *  "words" in req.search, where a "word" is a max sequence of /\w/
@@ -96,36 +87,40 @@ export class LendingLibrary {
    *    BAD_TYPE: search field is not a string or index/count are not numbers.
    *    BAD_REQ: no words in search, index/count not int or negative.
    */
-  async findBooks(req: Record<string, any>)
-  : Promise<Errors.Result<Lib.XBook[]>>
-{
-  if (!req.search) {
-    return Errors.errResult('Search field is missing', 'MISSING', 'search');
-  }
-  if (typeof req.search !== 'string') {
-    return Errors.errResult('Search field is not a string', 'BAD_TYPE', 'search');
-  }
-  const searchWords = extractWords(req.search);
-  if (searchWords.length === 0) {
-    return Errors.errResult('No valid words in search', 'BAD_REQ', 'search');
-  }
-
-  //const searchQuery = searchWords.join(' ');
-  const searchQuery = searchWords.map(word => '"${word}"').join(' ');
-
-  try {
-      const results = await this.dao.getBooksCollection().find({
-          $text: { $search: searchQuery }
-      }, { projection: { _id: 0 } })
+  async findBooks(req: Record<string, any>): Promise<Errors.Result<Lib.XBook[]>> {
+    if (!req.search) {
+      return Errors.errResult('Search field is missing', 'MISSING', 'search');
+    }
+    if (typeof req.search !== 'string') {
+      return Errors.errResult('Search field is not a string', 'BAD_TYPE', 'search');
+    }
+    const searchWords = extractWords(req.search);
+    if (searchWords.length === 0) {
+      return Errors.errResult('No valid words in search', 'BAD_REQ', 'search');
+    }
+ 
+    const searchQuery = searchWords.map(word => `"${word}"`).join(' ');
+    const index = req.index !== undefined ? parseInt(req.index, 10) : 0;
+    const count = req.count !== undefined ? parseInt(req.count, 10) : DEFAULT_COUNT;
+    if(isNaN(index) || index < 0) {
+      return Errors.errResult('Invalid index value', 'BAD_TYPE', 'index');
+    }
+    if(isNaN(count) || count <= 0) {
+      return Errors.errResult('Invalid count value', 'BAD_TYPE', 'count');
+    }
+ 
+    try {
+      const results = await this.dao.getBooksCollection()
+      .find({ $text: { $search: searchQuery }}, { projection: { _id: 0 } })
       .sort({ title: 1 })
       .toArray() as Lib.Book[];
-
-      return Errors.okResult(results);
-  } catch (error) {
+ 
+      const paginatedResults = results.slice(index, index + count);
+      return Errors.okResult(paginatedResults);
+    } catch (error) {
       return Errors.errResult(error.message, 'DB');
-  }
-}
-
+    }
+  } 
 
   /** Set up patron req.patronId to check out book req.isbn. 
    * 
