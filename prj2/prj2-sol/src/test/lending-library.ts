@@ -15,7 +15,7 @@ import { assert, expect } from 'chai';
 //to ensure that typescript narrows result correctly
 
 
-describe.skip('lending library', () => {
+describe('lending library', () => {
 
   let memDao : MemDao;
   let library: LendingLibrary;
