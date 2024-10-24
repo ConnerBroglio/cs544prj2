@@ -180,7 +180,48 @@ export class LendingLibrary {
    *    no checkout of the book by patronId.
    */
   async returnBook(req: Record<string, any>) : Promise<Errors.Result<void>> {
-    return Errors.errResult('TODO');
+
+    //validate req
+    if(typeof req.patronId === 'undefined' || req.patronId === null){return Errors.errResult('Missing patronId', 'MISSING', 'patronId');}
+    if(typeof req.isbn === 'undefined' || req.isbn === null) {return Errors.errResult('Missing isbn', 'MISSING', 'isbn');}
+    if(typeof req.patronId !== 'string'){return Errors.errResult('patronId is not a string', 'BAD_TYPE', 'patronId');}
+    if(typeof req.isbn !== 'string'){return Errors.errResult('isbn is not a string', 'BAD_TYPE', 'isbn');}
+
+    try {
+      //check if the book exists in the library
+      const existingBook = await this.dao.getBooksCollection().findOne({ isbn: req.isbn });
+      if (!existingBook) {
+        return Errors.errResult('book not found', 'BAD_REQ', 'isbn');
+      }
+
+      //check if the patron exists
+      const patron = await this.dao.getPatronCollection().findOne({ patronId: req.patronId });
+      if (patron) {
+          return Errors.errResult('Patron not found', 'BAD_REQ', 'patronId');
+      }
+       //check that book was checked out by same patron
+       const checkedOutBooks = await this.dao.getCheckedOutBooks(req.patronId) || [];
+       if (checkedOutBooks.includes(req.isbn)) {
+         return Errors.errResult('Book was not checked out by this patron', 'BAD_REQ', 'isbn');
+       }
+
+       //remove book from patron's checked out list, bc it's been returned
+       const updatedCheckedOutBooks = checkedOutBooks.filter((isbn: string) => isbn !== req.isbn);
+       await this.dao.getPatronCollection().updateOne(
+         { patronId: req.patronId },
+         { $set: { checkedOutBooks: updatedCheckedOutBooks } }
+       );
+
+       //increment available copies of the book in library
+       await this.dao.getBooksCollection().updateOne(
+         { isbn: req.isbn },
+         { $inc: { nCopies: 1 } }
+       );
+       return Errors.okResult<void>(undefined);
+
+    } catch (error) {
+      return Errors.errResult('database error', 'DB');
+    }
   }
 
   //add class code as needed
